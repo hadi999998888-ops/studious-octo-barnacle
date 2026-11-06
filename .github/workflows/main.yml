@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       - name: Download project
@@ -22,6 +23,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Configure Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
@@ -30,25 +34,27 @@ jobs:
 
       - name: Accept SDK licenses
         shell: bash
-        run: |
-          yes | sdkmanager --licenses || true
+        run: yes | sdkmanager --licenses || true
 
       - name: Install SDK components
         shell: bash
-        run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Verify project
+      - name: Ensure Gradle wrapper
+        shell: bash
         run: |
-          test -f settings.gradle
-          test -f build.gradle
-          test -f app/build.gradle
-          test -f gradlew
-
-      - name: Build Android APK
-        run: |
+          set -e
+          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Создаю Gradle wrapper..."
+            wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+            unzip -q gradle-8.7-bin.zip
+            ./gradle-8.7/bin/gradle wrapper --gradle-version 8.7
+          fi
           chmod +x gradlew
-          ./gradlew clean assembleDebug --stacktrace
+          ls -la gradlew gradle/wrapper/
+
+      - name: Build APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Publish APK
         uses: actions/upload-artifact@v4
