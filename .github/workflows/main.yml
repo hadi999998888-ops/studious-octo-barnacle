@@ -13,46 +13,49 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
     steps:
-      - name: Checkout
+      - name: Download project
         uses: actions/checkout@v4
 
-      - name: Java 17
+      - name: Install Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
+      - name: Configure Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
 
-      - name: Accept licenses
+      - name: Accept SDK licenses
+        shell: bash
         run: |
-          mkdir -p "$ANDROID_HOME/licenses"
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> "$ANDROID_HOME/licenses/android-sdk-license"
+          yes | sdkmanager --licenses || true
 
-      - name: Check Gradle Wrapper
+      - name: Install SDK components
+        shell: bash
         run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+
+      - name: Verify project
+        run: |
+          echo "Checking Gradle files..."
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
           test -f gradlew
+
+      - name: Build Android APK
+        run: |
           chmod +x gradlew
+          ./gradlew clean assembleDebug --stacktrace
 
-      - name: Build APK
-        run: ./gradlew --no-daemon assembleDebug
-
-      - name: Upload APK
+      - name: Publish APK
         uses: actions/upload-artifact@v4
         with:
           name: LOOP-HACK-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 7
           
